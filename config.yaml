@@ -3,11 +3,7 @@ database:
     type: category
     prefix: /home/lialh4/.local/share/io.github.clash-verge-rev.clash-verge-rev
     database:
-      profiles:
-        type: category
-        prefix: profiles
-        database:
-          script:
-            type: file
-            src: Script.js
-            dist: script.js
+      script:
+        type: file
+        src: profiles/Script.js
+        dist: script.js
