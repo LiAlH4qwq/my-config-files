@@ -1,25 +1,31 @@
 import { z } from "zod"
 
-export const LeafItem = z.object({
+export interface LeafItem extends z.infer<typeof LeafItemZ> { }
+export interface CategoryItem extends z.infer<typeof CategoryItemZ> { }
+export interface Config extends z.infer<typeof ConfigZ> { }
+export type Item = LeafItem | CategoryItem
+export type Branch = Config | CategoryItem
+
+export const LeafItemZ = z.object({
     type: z.union([z.literal("file"), z.literal("dir")]),
     src: z.string(),
     dist: z.string()
 })
 
-export const CategoryItem = z.object({
+export const CategoryItemZ = z.object({
     type: z.literal("category"),
     prefix: z.string(),
     get database() {
-        return z.record(z.string(), Item)
+        return z.record(z.string(), ItemZ)
     }
 })
 
-export const Config = z.object({
+export const ConfigZ = z.object({
     get database() {
-        return z.record(z.string(), Item)
+        return z.record(z.string(), ItemZ)
     }
 })
 
-export const Item = z.union([LeafItem, CategoryItem])
+export const ItemZ = z.union([LeafItemZ, CategoryItemZ])
 
-export const Branch = z.union([Config, CategoryItem])
+export const BranchZ = z.union([ConfigZ, CategoryItemZ])
