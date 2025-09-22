@@ -24,13 +24,13 @@
         "tsc-alias": "^1.8.16"
     },
     "peerDependencies": {
-        "typescript": "^5"
+        "typescript": "^5.9.2"
     },
     "scripts": {
         "prepublishOnly": "bun run compile",
         "compile": "bun run tsc && bun run tsc-alias"
     },
     "dependencies": {
-        "zod": "^4.1.8"
+        "zod": "^4.1.11"
     }
 }
