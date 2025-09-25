@@ -31,16 +31,28 @@ const main = async (args: string[]) => {
     console.log(showNonLeafItem(db)(path)(item))
 }
 
-const getItem = (on: Branch) => (path: string[]): Maybe<Item> => {
-    if (path.length < 1) return undefined
-    const curPath = path.at(0)!
-    const restPath = path.slice(1)
-    const cur = on.database[curPath]
-    if (cur === undefined) return undefined
-    if (restPath.length <= 0) return cur
-    if (cur.type !== "category") return undefined
-    return getItem(cur)(restPath)
-}
+const getItem = (on: Branch) => (path: string[]): Maybe<Item> =>
+    getItemX<Item>(on)(_ => cur => cur)({} as Item)(path)
+
+const getItemFullSrc = (on: Branch) => (path: string[]): Maybe<string> =>
+    getItemX<string>(on)(acc => cur => {
+        const src = getSrcOrPrefix(cur)
+        return acc === "" ? src : `${acc}/${src}`
+    })("")(path)
+
+const getItemX = <T>(on: Branch) =>
+    (accUpdater: (acc: T) => (cur: Item) => T) =>
+        (acc: T) => (path: string[]): Maybe<T> => {
+            if (path.length <= 0) return undefined
+            const curPath = path.at(0)!
+            const restPath = path.slice(1)
+            const cur = on.database[curPath]
+            if (cur === undefined) return undefined
+            const newAcc = accUpdater(acc)(cur)
+            if (restPath.length <= 0) return newAcc
+            if (cur.type !== "category") return undefined
+            return getItemX<T>(on)(accUpdater)(newAcc)(restPath)
+        }
 
 const getAllLeafs = (on: Branch): [path: string[], item: LeafItem][] => {
     const childs = Object.entries(on.database).map(child => [[child[0]], child[1]] as [string[], Item])
@@ -56,18 +68,6 @@ const getAllLeafs = (on: Branch): [path: string[], item: LeafItem][] => {
     return [...leafs, ...leafsInNonLeafs]
 }
 
-const getFullSrc = (on: Branch) => (path: string[]): Maybe<string> => {
-    if (path.length < 1) return undefined
-    const nextPath = path.slice(0, -1)
-    const cur = getItem(on)(path)
-    if (cur === undefined) return undefined
-    const curSrc = getSrcOrPrefix(cur)
-    if (nextPath.length <= 0) return curSrc
-    const nextSrc = getFullSrc(on)(nextPath)
-    if (nextSrc === undefined) return curSrc
-    return `${nextSrc}/${curSrc}`
-}
-
 const getSrcOrPrefix = (item: Item): string =>
     item.type === "category" ? item.prefix : item.src
 
@@ -75,13 +75,13 @@ const showLeafItem = (on: Branch) => (path: string[]) => (item: LeafItem): strin
 [Leaf Item]
 type = ${item.type}
 path = ${path}
-fullSrc = ${getFullSrc(on)(path)}
+fullSrc = ${getItemFullSrc(on)(path)}
 `.trim()
 
 const showNonLeafItem = (on: Branch) => (path: string[]) => (item: Branch) => `
 [Non-Leaf Item]
 path = ${path}
-fullSrc = ${getFullSrc(on)(path)}
+fullSrc = ${getItemFullSrc(on)(path)}
 [[Leafs]]
 ${getAllLeafs(item).map(leaf => showLeafItem(on)([...path, ...leaf[0]])(leaf[1]))}
 `.trim()

@@ -1,0 +1,109 @@
+database:
+  home:
+    type: category
+    prefix: /home/lialh4
+    database:
+      config:
+        type: category
+        prefix: .config
+        database:
+          env:
+            type: category
+            prefix: environment.d
+            database:
+              fcitx:
+                type: file
+                src: fcitx.conf
+                dist: fcitx.conf
+              zip:
+                type: file
+                src: zip.conf
+                dist: zip.conf
+          fish:
+            type: category
+            prefix: fish
+            database:
+              configs:
+                type: category
+                prefix: conf.d
+                database:
+                  greeting:
+                    type: file
+                    src: greeting.fish
+                    dist: greeting.fish
+                  d:
+                    type: file
+                    src: d.fish
+                    dist: d.fish
+                  fix-rust-bind-gen:
+                    type: file
+                    src: fix-rust-bind-gen.fish
+                    dist: fix-rust-bind-gen.fish
+                  bun:
+                    type: file
+                    src: bun.fish
+                    dist: bun.fish
+                  cargo:
+                    type: file
+                    src: cargo.fish
+                    dist: cargo.fish
+                  ghcup:
+                    type: file
+                    src: ghcup.fish
+                    dist: ghcup.fish
+                  moonbit:
+                    type: file
+                    src: moonbit.fish
+                    dist: moonbit.fish
+                  npm:
+                    type: file
+                    src: npm.fish
+                    dist: npm.fish
+                  rustup:
+                    type: file
+                    src: rustup.fish
+                    dist: rustup.fish
+                  stack:
+                    type: file
+                    src: stack.fish
+                    dist: stack.fish
+                  starship:
+                    type: file
+                    src: starship.fish
+                    dist: starship.fish
+              functions:
+                type: category
+                prefix: functions
+                database:
+                  d:
+                    type: file
+                    src: D:.fish
+                    dist: D:.fish
+                  ls:
+                    type: file
+                    src: ls.fish
+                    dist: ls.fish
+                  tree:
+                    type: file
+                    src: tree.fish
+                    dist: tree.fish
+          fontconfig:
+            type: file
+            src: fontconfig/conf.d/60-lialh4.conf
+            dist: fontconfig.conf
+          git:
+            type: file
+            src: git/config
+            dist: git.conf
+          bun:
+            type: file
+            src: .bunfig.toml
+            dist: bun.toml
+      clash-verge:
+        type: category
+        prefix: .local/share/io.github.clash-verge-rev.clash-verge-rev
+        database:
+          script:
+            type: file
+            src: profiles/Script.js
+            dist: script.js
