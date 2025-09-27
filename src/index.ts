@@ -1,3 +1,4 @@
+import { lstat } from "fs/promises";
 import { Branch, CategoryItem, ConfigZ, Item, LeafItem } from "./types"
 
 type Maybe<T> = T | undefined
@@ -10,7 +11,7 @@ const main = async (args: string[]) => {
     const subCmd = args.at(0)!
     const selector = args.at(1)!
     const path = selector.split(".").map(part => part.trim())
-    const dbFile = Bun.file("./database.yaml")
+    const dbFile = Bun.file("./db.yaml")
     const dbYaml = await dbFile.text()
     const dbObj = Bun.YAML.parse(dbYaml)
     const dbMaybe = ConfigZ.safeParse(dbObj)
@@ -25,10 +26,15 @@ const main = async (args: string[]) => {
         return
     }
     if (item.type !== "category") {
-        console.log(showLeafItem(db)(path)(item))
+        console.log(genCopyCmd(item.type === "dir")(getItemFullSrc(db)(path)!)(getItemFullDist(db)(path)!))
         return
     }
-    console.log(showNonLeafItem(db)(path)(item))
+    const leafs = getAllLeafs(item)
+        .map(leaf => [leaf, getItem(item)(leaf) as LeafItem] as [string[], LeafItem])
+    leafs.map(leaf => {
+        const fullPath = [...path, ...leaf[0]]
+        console.log(genCopyCmd(leaf[1].type === "dir")(getItemFullSrc(db)(fullPath)!)(getItemFullDist(db)(fullPath)!))
+    })
 }
 
 const getItem = (on: Branch) => (path: string[]): Maybe<Item> =>
@@ -39,6 +45,9 @@ const getItemFullSrc = (on: Branch) => (path: string[]): Maybe<string> =>
         const src = getSrcOrPrefix(cur)
         return acc === "" ? src : `${acc}/${src}`
     })("")(path)
+
+const getItemFullDist = (on: Branch) => (path: string[]): Maybe<string> =>
+    `./database/${path.slice(0, -1).join("/")}/${getItemX<string>(on)(_ => cur => cur.type === "category" ? "" : cur.dist)("")(path)}`
 
 const getItemX = <T>(on: Branch) =>
     (accUpdater: (acc: T) => (cur: Item) => T) =>
@@ -51,39 +60,42 @@ const getItemX = <T>(on: Branch) =>
             const newAcc = accUpdater(acc)(cur)
             if (restPath.length <= 0) return newAcc
             if (cur.type !== "category") return undefined
-            return getItemX<T>(on)(accUpdater)(newAcc)(restPath)
+            return getItemX<T>(cur)(accUpdater)(newAcc)(restPath)
         }
 
-const getAllLeafs = (on: Branch): [path: string[], item: LeafItem][] => {
-    const childs = Object.entries(on.database).map(child => [[child[0]], child[1]] as [string[], Item])
-    const leafs = childs.filter(child => child[1].type !== "category") as [string[], LeafItem][]
-    const nonLeafs = childs.filter(child => child[1].type === "category") as [string[], CategoryItem][]
-    const leafsInNonLeafsNested = nonLeafs.map(nonLeaf => [nonLeaf[0], getAllLeafs(nonLeaf[1])]) as [string[], [string[], LeafItem][]][]
-    const leafsInNonLeafs = leafsInNonLeafsNested.map(leafsInNonLeafNested => {
+const getAllLeafs = (on: Branch): string[][] => {
+    const childItems = Object.entries(on.database)
+        .map(child => [[child[0]], child[1]] as [string[], Item])
+    const directLeafs = childItems
+        .filter(child => child[1].type !== "category")
+        .map(child => child[0])
+    const nonLeafItems = childItems
+        .filter(child => child[1].type === "category") as [string[], CategoryItem][]
+    const leafsInNonLeafsItemsNested = nonLeafItems
+        .map(nonLeaf => [nonLeaf[0], getAllLeafs(nonLeaf[1])] as [string[], string[][]])
+    const leafsInNonLeafs = leafsInNonLeafsItemsNested.map(leafsInNonLeafNested => {
         const nonLeaf = leafsInNonLeafNested[0]
         const rawLeafs = leafsInNonLeafNested[1]
-        const processedLeafs = rawLeafs.map(rawLeaf => [[...nonLeaf, ...rawLeaf[0]], rawLeaf[1]] as [string[], LeafItem])
+        const processedLeafs = rawLeafs.map(rawLeaf => [...nonLeaf, ...rawLeaf])
         return processedLeafs
     }).flat()
-    return [...leafs, ...leafsInNonLeafs]
+    return [...directLeafs, ...leafsInNonLeafs]
 }
 
 const getSrcOrPrefix = (item: Item): string =>
     item.type === "category" ? item.prefix : item.src
 
-const showLeafItem = (on: Branch) => (path: string[]) => (item: LeafItem): string => `
+const showLeafItem = (item: LeafItem) => `
 [Leaf Item]
 type = ${item.type}
-path = ${path}
-fullSrc = ${getItemFullSrc(on)(path)}
+src = ${item.src}
+dist = ${item.dist}
 `.trim()
 
-const showNonLeafItem = (on: Branch) => (path: string[]) => (item: Branch) => `
-[Non-Leaf Item]
-path = ${path}
-fullSrc = ${getItemFullSrc(on)(path)}
-[[Leafs]]
-${getAllLeafs(item).map(leaf => showLeafItem(on)([...path, ...leaf[0]])(leaf[1]))}
+const genCopyCmd = (isDir: boolean) => (src: string) => (dist: string): string => `
+mkdir -p ${dist.split("/").slice(0, -1).join("/")}
+rm${isDir ? " -r " : " "}${dist}
+cp${isDir ? " -r " : " "}${src} ${dist}
 `.trim()
 
 if (import.meta.main) main(Bun.argv.slice(2))

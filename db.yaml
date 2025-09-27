@@ -15,10 +15,6 @@ database:
                 type: file
                 src: fcitx.conf
                 dist: fcitx.conf
-              zip:
-                type: file
-                src: zip.conf
-                dist: zip.conf
           fish:
             type: category
             prefix: fish
@@ -35,10 +31,10 @@ database:
                     type: file
                     src: d.fish
                     dist: d.fish
-                  fix-rust-bind-gen:
+                  fix-rust-bindgen:
                     type: file
-                    src: fix-rust-bind-gen.fish
-                    dist: fix-rust-bind-gen.fish
+                    src: fix-rust-bindgen.fish
+                    dist: fix-rust-bindgen.fish
                   bun:
                     type: file
                     src: bun.fish
@@ -51,10 +47,6 @@ database:
                     type: file
                     src: ghcup.fish
                     dist: ghcup.fish
-                  moonbit:
-                    type: file
-                    src: moonbit.fish
-                    dist: moonbit.fish
                   npm:
                     type: file
                     src: npm.fish
@@ -67,10 +59,6 @@ database:
                     type: file
                     src: stack.fish
                     dist: stack.fish
-                  starship:
-                    type: file
-                    src: starship.fish
-                    dist: starship.fish
               functions:
                 type: category
                 prefix: functions
@@ -83,10 +71,6 @@ database:
                     type: file
                     src: ls.fish
                     dist: ls.fish
-                  tree:
-                    type: file
-                    src: tree.fish
-                    dist: tree.fish
           fontconfig:
             type: file
             src: fontconfig/conf.d/60-lialh4.conf
