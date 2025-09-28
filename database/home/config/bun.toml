@@ -1,2 +1,5 @@
 [run]
 bun = true
+
+[install.cache]
+dir = "~/.local/opt/bun/install/cache"
