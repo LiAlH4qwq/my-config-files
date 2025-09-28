@@ -1,96 +1,163 @@
 import { lstat } from "fs/promises";
-import { Branch, CategoryItem, ConfigZ, Item, LeafItem } from "./types"
+import { Branch, BranchX, CategoryItem, CategoryItemX, Config, ConfigZ, Item, ItemLikeX, ItemX, ItemZ, LeafItem, LeafItemX } from "./types"
+import { ZodSafeParseResult } from "zod";
 
 type Maybe<T> = T | undefined
 
+type OPs = "list" | "backup" | "restore"
+
 const main = async (args: string[]) => {
-    if (args.length !== 2 || args.at(0) !== "backup" && args.at(0) !== "restore") {
-        console.log("Usage: configctl <backup|restore> <selector>")
+    if (args.length !== 2
+        || args.at(0) !== "list"
+        && args.at(0) !== "backup"
+        && args.at(0) !== "restore"
+    ) {
+        console.log("Usage: configctl <list|backup|restore> <selector|*>")
         return
     }
-    const subCmd = args.at(0)!
+    const subCmd = args.at(0) as OPs
     const selector = args.at(1)!
-    const path = selector.split(".").map(part => part.trim())
-    const dbFile = Bun.file("./db.yaml")
-    const dbYaml = await dbFile.text()
-    const dbObj = Bun.YAML.parse(dbYaml)
-    const dbMaybe = ConfigZ.safeParse(dbObj)
+    const path = selector.trim() === "*" ?
+        [] : selector.split(".").map(part => part.trim())
+    const dbMaybe = await tryGetDb()
     if (!dbMaybe.success) {
         console.log(`Database file misform:\n${dbMaybe.error}`)
         return
     }
     const db = dbMaybe.data
-    const item = getItem(db)(path)
+    const enrichedDB = enrichBranch("")([])(db)
+    const item = getItemX(enrichedDB)(path)(0)
     if (item === undefined) {
         console.log("Item not found!")
         return
     }
-    if (item.type !== "category") {
-        console.log(genCopyCmd(item.type === "dir")(getItemFullSrc(db)(path)!)(getItemFullDist(db)(path)!))
-        return
-    }
-    const leafs = getAllLeafs(item)
-        .map(leaf => [leaf, getItem(item)(leaf) as LeafItem] as [string[], LeafItem])
-    leafs.map(leaf => {
-        const fullPath = [...path, ...leaf[0]]
-        console.log(genCopyCmd(leaf[1].type === "dir")(getItemFullSrc(db)(fullPath)!)(getItemFullDist(db)(fullPath)!))
-    })
+    console.log(opOnItemLikeX(item)(subCmd))
 }
 
-const getItem = (on: Branch) => (path: string[]): Maybe<Item> =>
-    getItemX<Item>(on)(_ => cur => cur)({} as Item)(path)
+const tryGetDb = async (): Promise<ZodSafeParseResult<Config>> => {
+    const dbFile = Bun.file("./db.yaml")
+    const dbYaml = await dbFile.text()
+    const dbObj = Bun.YAML.parse(dbYaml)
+    return ConfigZ.safeParse(dbObj)
+}
 
-const getItemFullSrc = (on: Branch) => (path: string[]): Maybe<string> =>
-    getItemX<string>(on)(acc => cur => {
-        const src = getSrcOrPrefix(cur)
-        return acc === "" ? src : `${acc}/${src}`
-    })("")(path)
-
-const getItemFullDist = (on: Branch) => (path: string[]): Maybe<string> =>
-    `./database/${path.slice(0, -1).join("/")}/${getItemX<string>(on)(_ => cur => cur.type === "category" ? "" : cur.dist)("")(path)}`
-
-const getItemX = <T>(on: Branch) =>
-    (accUpdater: (acc: T) => (cur: Item) => T) =>
-        (acc: T) => (path: string[]): Maybe<T> => {
-            if (path.length <= 0) return undefined
-            const curPath = path.at(0)!
-            const restPath = path.slice(1)
-            const cur = on.database[curPath]
-            if (cur === undefined) return undefined
-            const newAcc = accUpdater(acc)(cur)
-            if (restPath.length <= 0) return newAcc
-            if (cur.type !== "category") return undefined
-            return getItemX<T>(cur)(accUpdater)(newAcc)(restPath)
+const enrichBranch = (prefix: string) => (path: string[]) =>
+    (branch: Branch): BranchX => {
+        const childEntries = Object.entries(branch.database)
+            .map(child => ({ name: child[0], body: child[1] }))
+        const directLeafEntries = childEntries
+            .filter(entry => entry.body.type !== "category") as { name: string, body: LeafItem }[]
+        const enrichedDirectLeafEntries = directLeafEntries
+            .map(entry => ({
+                ...entry,
+                body: {
+                    ...entry.body,
+                    name: entry.name,
+                    fullPath: [...path, entry.name],
+                    fullSrc: prefix !== "" ? `${prefix}/${entry.body.src}` : entry.body.src,
+                    fullDist: path.length >= 1 ? `./database/${path.join("/")}/${entry.body.dist}` : `./database/${entry.body.dist}`,
+                },
+            })) // as {name: string, body: LeafItemX}[]
+        const nonLeafEntries = childEntries
+            .filter(entry => entry.body.type === "category") as { name: string, body: CategoryItem }[]
+        const enrichedNonLeafEntries = nonLeafEntries
+            .map(entry => ({
+                ...entry,
+                body: enrichBranch(prefix !== "" ? `${prefix}/${entry.body.prefix}` : entry.body.prefix)([...path, entry.name])(entry.body) as CategoryItemX
+            } as const)) // as {name: string, body: CategoryItemX}[]
+        const enrichedChildEntries = [
+            ...enrichedDirectLeafEntries,
+            ...enrichedNonLeafEntries,
+        ]
+        const enrichedDadabase = Object.fromEntries(
+            enrichedChildEntries.map(entry => [entry.name, entry.body] as const)
+        )
+        if (path.length <= 0)
+            return {
+                ...branch,
+                database: enrichedDadabase,
+            }
+        return {
+            ...branch,
+            name: path.at(-1)!,
+            fullPath: path,
+            fullPrefix: prefix,
+            database: enrichedDadabase,
         }
+    }
 
-const getAllLeafs = (on: Branch): string[][] => {
-    const childItems = Object.entries(on.database)
-        .map(child => [[child[0]], child[1]] as [string[], Item])
-    const directLeafs = childItems
-        .filter(child => child[1].type !== "category")
-        .map(child => child[0])
-    const nonLeafItems = childItems
-        .filter(child => child[1].type === "category") as [string[], CategoryItem][]
-    const leafsInNonLeafsItemsNested = nonLeafItems
-        .map(nonLeaf => [nonLeaf[0], getAllLeafs(nonLeaf[1])] as [string[], string[][]])
-    const leafsInNonLeafs = leafsInNonLeafsItemsNested.map(leafsInNonLeafNested => {
-        const nonLeaf = leafsInNonLeafNested[0]
-        const rawLeafs = leafsInNonLeafNested[1]
-        const processedLeafs = rawLeafs.map(rawLeaf => [...nonLeaf, ...rawLeaf])
-        return processedLeafs
-    }).flat()
+const getItemX = (on: Maybe<ItemLikeX>) =>
+    (path: string[]) => (offset: number): Maybe<ItemLikeX> => {
+        // Try finding on undefined => undefined
+        if (on === undefined) return undefined
+        // No further path query => current item
+        if (offset >= path.length) return on
+        // Futher query exist but current item is leaf => undefined
+        if (!("database" in on)) return undefined
+        return getItemX(on.database[path.at(offset)!])(path)(offset + 1)
+    }
+
+const getAllLeafXs = (on: BranchX): LeafItemX[] => {
+    const childs = Object.values(on.database)
+    const directLeafs = childs
+        .filter(child => child.type !== "category")
+    const nonLeafs = childs
+        .filter(child => child.type === "category")
+    const leafsInNonLeafs = nonLeafs
+        .flatMap(nonLeaf => getAllLeafXs(nonLeaf))
     return [...directLeafs, ...leafsInNonLeafs]
 }
 
-const getSrcOrPrefix = (item: Item): string =>
-    item.type === "category" ? item.prefix : item.src
-
-const showLeafItem = (item: LeafItem) => `
+const showLeafItemX = (item: LeafItemX): string => `
 [Leaf Item]
-type = ${item.type}
-src = ${item.src}
-dist = ${item.dist}
+Name = ${item.name}
+FullPath = ${item.fullPath.join(".")}
+Type = ${item.type}
+Src = ${item.src}
+FullSrc = ${item.fullSrc}
+Dist = ${item.dist}
+FullDist = ${item.fullDist}
 `.trim()
+
+const showNonLeafX = (item: BranchX): string => {
+    const leafs = getAllLeafXs(item)
+        .map(showLeafItemX)
+        .map(str => str
+            .split("\n")
+            .map(line => `  ${line}`)
+            .join("\n")
+            .replace("[Leaf Item]", "[[Leaf Item]]"))
+        .join("\n")
+    if (!("prefix" in item)) return `
+[Non-Leaf Item (Root)]
+${leafs}
+    `.trim()
+    return `
+[Non-Leaf Item]
+Name = ${item.name}
+FullPath = ${item.fullPath.join(".")}
+Type = ${item.type}
+Prefix = ${item.prefix}
+FullPrefix = ${item.fullPrefix}
+${leafs}
+    `.trim()
+}
+
+const opOnItemLikeX = (item: ItemLikeX) =>
+    (op: OPs): string => {
+        if (op === "list")
+            return "src" in item ?
+                showLeafItemX(item) :
+                showNonLeafX(item)
+        if (op === "backup")
+            return "src" in item ?
+                genCopyCmd(item.type === "dir")(item.fullSrc)(item.fullDist) :
+                getAllLeafXs(item).map(leaf => genCopyCmd(leaf.type === "dir")(leaf.fullSrc)(leaf.fullDist)).join("\n")
+        else
+            return "src" in item ?
+                genCopyCmd(item.type === "dir")(item.fullDist)(item.fullSrc) :
+                getAllLeafXs(item).map(leaf => genCopyCmd(leaf.type === "dir")(leaf.fullDist)(leaf.fullSrc)).join("\n")
+    }
 
 const genCopyCmd = (isDir: boolean) => (src: string) => (dist: string): string => `
 mkdir -p ${dist.split("/").slice(0, -1).join("/")}

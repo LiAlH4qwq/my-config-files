@@ -13,7 +13,10 @@
             "cwd": "${workspaceFolder}",
             "stopOnEntry": false,
             "watchMode": false,
-            "args": ["backup", "clash-verge"]
+            "args": [
+                "backup",
+                "home"
+            ]
         },
         {
             "type": "bun",
