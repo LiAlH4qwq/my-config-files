@@ -3,10 +3,34 @@ database:
     type: category
     prefix: /home/lialh4
     database:
+      clash-verge:
+        type: category
+        prefix: .local/share/io.github.clash-verge-rev.clash-verge-rev
+        database:
+          script:
+            type: file
+            src: profiles/Script.js
+            dist: script.js
       config:
         type: category
         prefix: .config
         database:
+          bun:
+            type: file
+            src: .bunfig.toml
+            dist: bun.toml
+          fontconfig:
+            type: file
+            src: fontconfig/conf.d/60-lialh4.conf
+            dist: fontconfig.conf
+          git:
+            type: file
+            src: git/config
+            dist: git.conf
+          nano:
+            type: file
+            src: nano/nanorc
+            dist: nano.rc
           env:
             type: category
             prefix: environment.d
@@ -71,23 +95,3 @@ database:
                     type: file
                     src: ls.fish
                     dist: ls.fish
-          fontconfig:
-            type: file
-            src: fontconfig/conf.d/60-lialh4.conf
-            dist: fontconfig.conf
-          git:
-            type: file
-            src: git/config
-            dist: git.conf
-          bun:
-            type: file
-            src: .bunfig.toml
-            dist: bun.toml
-      clash-verge:
-        type: category
-        prefix: .local/share/io.github.clash-verge-rev.clash-verge-rev
-        database:
-          script:
-            type: file
-            src: profiles/Script.js
-            dist: script.js
