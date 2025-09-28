@@ -1,6 +1,15 @@
-import { lstat } from "fs/promises";
-import { Branch, BranchX, CategoryItem, CategoryItemX, Config, ConfigZ, Item, ItemLikeX, ItemX, ItemZ, LeafItem, LeafItemX } from "./types"
-import { ZodSafeParseResult } from "zod";
+import { ZodSafeParseResult } from "zod"
+import {
+    Branch,
+    BranchX,
+    CategoryItem,
+    CategoryItemX,
+    Config,
+    ConfigZ,
+    ItemLikeX,
+    LeafItem,
+    LeafItemX
+} from "./types"
 
 type Maybe<T> = T | undefined
 
@@ -69,20 +78,20 @@ const enrichBranch = (prefix: string) => (path: string[]) =>
             ...enrichedDirectLeafEntries,
             ...enrichedNonLeafEntries,
         ]
-        const enrichedDadabase = Object.fromEntries(
+        const enrichedDatabase = Object.fromEntries(
             enrichedChildEntries.map(entry => [entry.name, entry.body] as const)
         )
         if (path.length <= 0)
             return {
                 ...branch,
-                database: enrichedDadabase,
+                database: enrichedDatabase,
             }
         return {
             ...branch,
             name: path.at(-1)!,
             fullPath: path,
             fullPrefix: prefix,
-            database: enrichedDadabase,
+            database: enrichedDatabase,
         }
     }
 
