@@ -13,10 +13,7 @@
             "cwd": "${workspaceFolder}",
             "stopOnEntry": false,
             "watchMode": false,
-            "args": [
-                "backup",
-                "home"
-            ]
+            "args": ["backup", "home"]
         },
         {
             "type": "bun",

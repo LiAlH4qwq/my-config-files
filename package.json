@@ -20,6 +20,7 @@
         "tsconfig.json"
     ],
     "devDependencies": {
+        "@biomejs/biome": "^2.2.6",
         "@types/bun": "latest",
         "tsc-alias": "^1.8.16"
     },

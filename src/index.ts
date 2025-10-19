@@ -1,33 +1,37 @@
-import { ZodSafeParseResult } from "zod"
+import type { ZodSafeParseResult } from "zod"
 import {
-    Branch,
-    BranchX,
-    CategoryItem,
-    CategoryItemX,
-    Config,
+    type Branch,
+    type BranchX,
+    type CategoryItem,
+    type CategoryItemX,
+    type Config,
     ConfigZ,
-    ItemLikeX,
-    LeafItem,
-    LeafItemX
+    type ItemLikeX,
+    type LeafItem,
+    type LeafItemX,
 } from "./types"
 
 type Maybe<T> = T | undefined
 
-type OPs = "list" | "backup" | "restore"
+type OPs = "ls" | "la" | "backup" | "restore"
 
 const main = async (args: string[]) => {
-    if (args.length !== 2
-        || args.at(0) !== "list"
-        && args.at(0) !== "backup"
-        && args.at(0) !== "restore"
+    if (
+        args.length !== 2 ||
+        (args.at(0) !== "ls" &&
+            args.at(0) !== "la" &&
+            args.at(0) !== "backup" &&
+            args.at(0) !== "restore")
     ) {
-        console.log("Usage: configctl <list|backup|restore> <selector|*>")
+        console.log("Usage: configctl <ls|la|backup|restore> <selector|*>")
         return
     }
     const subCmd = args.at(0) as OPs
     const selector = args.at(1)!
-    const path = selector.trim() === "*" ?
-        [] : selector.split(".").map(part => part.trim())
+    const path =
+        selector.trim() === "*"
+            ? []
+            : selector.split(".").map(part => part.trim())
     const dbMaybe = await tryGetDb()
     if (!dbMaybe.success) {
         console.log(`Database file misform:\n${dbMaybe.error}`)
@@ -50,36 +54,55 @@ const tryGetDb = async (): Promise<ZodSafeParseResult<Config>> => {
     return ConfigZ.safeParse(dbObj)
 }
 
-const enrichBranch = (prefix: string) => (path: string[]) =>
+const enrichBranch =
+    (prefix: string) =>
+    (path: string[]) =>
     (branch: Branch): BranchX => {
-        const childEntries = Object.entries(branch.database)
-            .map(child => ({ name: child[0], body: child[1] }))
-        const directLeafEntries = childEntries
-            .filter(entry => entry.body.type !== "category") as { name: string, body: LeafItem }[]
-        const enrichedDirectLeafEntries = directLeafEntries
-            .map(entry => ({
-                ...entry,
-                body: {
-                    ...entry.body,
-                    name: entry.name,
-                    fullPath: [...path, entry.name],
-                    fullSrc: prefix !== "" ? `${prefix}/${entry.body.src}` : entry.body.src,
-                    fullDist: path.length >= 1 ? `./database/${path.join("/")}/${entry.body.dist}` : `./database/${entry.body.dist}`,
-                },
-            })) // as {name: string, body: LeafItemX}[]
-        const nonLeafEntries = childEntries
-            .filter(entry => entry.body.type === "category") as { name: string, body: CategoryItem }[]
-        const enrichedNonLeafEntries = nonLeafEntries
-            .map(entry => ({
-                ...entry,
-                body: enrichBranch(prefix !== "" ? `${prefix}/${entry.body.prefix}` : entry.body.prefix)([...path, entry.name])(entry.body) as CategoryItemX
-            } as const)) // as {name: string, body: CategoryItemX}[]
+        const childEntries = Object.entries(branch.database).map(child => ({
+            name: child[0],
+            body: child[1],
+        }))
+        const directLeafEntries = childEntries.filter(
+            entry => entry.body.type !== "category",
+        ) as { name: string; body: LeafItem }[]
+        const enrichedDirectLeafEntries = directLeafEntries.map(entry => ({
+            ...entry,
+            body: {
+                ...entry.body,
+                name: entry.name,
+                fullPath: [...path, entry.name],
+                fullSrc:
+                    prefix !== ""
+                        ? `${prefix}/${entry.body.src}`
+                        : entry.body.src,
+                fullDist:
+                    path.length >= 1
+                        ? `./database/${path.join("/")}/${entry.body.dist}`
+                        : `./database/${entry.body.dist}`,
+            },
+        })) // as {name: string, body: LeafItemX}[]
+        const nonLeafEntries = childEntries.filter(
+            entry => entry.body.type === "category",
+        ) as { name: string; body: CategoryItem }[]
+        const enrichedNonLeafEntries = nonLeafEntries.map(
+            entry =>
+                ({
+                    ...entry,
+                    body: enrichBranch(
+                        prefix !== ""
+                            ? `${prefix}/${entry.body.prefix}`
+                            : entry.body.prefix,
+                    )([...path, entry.name])(entry.body) as CategoryItemX,
+                }) as const,
+        ) // as {name: string, body: CategoryItemX}[]
         const enrichedChildEntries = [
             ...enrichedDirectLeafEntries,
             ...enrichedNonLeafEntries,
         ]
         const enrichedDatabase = Object.fromEntries(
-            enrichedChildEntries.map(entry => [entry.name, entry.body] as const)
+            enrichedChildEntries.map(
+                entry => [entry.name, entry.body] as const,
+            ),
         )
         if (path.length <= 0)
             return {
@@ -95,8 +118,10 @@ const enrichBranch = (prefix: string) => (path: string[]) =>
         }
     }
 
-const getItemX = (on: Maybe<ItemLikeX>) =>
-    (path: string[]) => (offset: number): Maybe<ItemLikeX> => {
+const getItemX =
+    (on: Maybe<ItemLikeX>) =>
+    (path: string[]) =>
+    (offset: number): Maybe<ItemLikeX> => {
         // Try finding on undefined => undefined
         if (on === undefined) return undefined
         // No further path query => current item
@@ -108,16 +133,14 @@ const getItemX = (on: Maybe<ItemLikeX>) =>
 
 const getAllLeafXs = (on: BranchX): LeafItemX[] => {
     const childs = Object.values(on.database)
-    const directLeafs = childs
-        .filter(child => child.type !== "category")
-    const nonLeafs = childs
-        .filter(child => child.type === "category")
-    const leafsInNonLeafs = nonLeafs
-        .flatMap(nonLeaf => getAllLeafXs(nonLeaf))
+    const directLeafs = childs.filter(child => child.type !== "category")
+    const nonLeafs = childs.filter(child => child.type === "category")
+    const leafsInNonLeafs = nonLeafs.flatMap(nonLeaf => getAllLeafXs(nonLeaf))
     return [...directLeafs, ...leafsInNonLeafs]
 }
 
-const showLeafItemX = (item: LeafItemX): string => `
+const showLeafItemX = (item: LeafItemX): string =>
+    `
 [Leaf Item]
 Name = ${item.name}
 FullPath = ${item.fullPath.join(".")}
@@ -131,13 +154,16 @@ FullDist = ${item.fullDist}
 const showNonLeafX = (item: BranchX): string => {
     const leafs = getAllLeafXs(item)
         .map(showLeafItemX)
-        .map(str => str
-            .split("\n")
-            .map(line => `  ${line}`)
-            .join("\n")
-            .replace("[Leaf Item]", "[[Leaf Item]]"))
+        .map(str =>
+            str
+                .split("\n")
+                .map(line => `  ${line}`)
+                .join("\n")
+                .replace("[Leaf Item]", "[[Leaf Item]]"),
+        )
         .join("\n")
-    if (!("prefix" in item)) return `
+    if (!("prefix" in item))
+        return `
 [Non-Leaf Item (Root)]
 ${leafs}
     `.trim()
@@ -152,23 +178,40 @@ ${leafs}
     `.trim()
 }
 
-const opOnItemLikeX = (item: ItemLikeX) =>
+const opOnItemLikeX =
+    (item: ItemLikeX) =>
     (op: OPs): string => {
-        if (op === "list")
-            return "src" in item ?
-                showLeafItemX(item) :
-                showNonLeafX(item)
-        if (op === "backup")
-            return "src" in item ?
-                genCopyCmd(item.type === "dir")(item.fullSrc)(item.fullDist) :
-                getAllLeafXs(item).map(leaf => genCopyCmd(leaf.type === "dir")(leaf.fullSrc)(leaf.fullDist)).join("\n")
+        if (op === "ls")
+            return "src" in item ? item.fullPath.join(".") : getAllLeafXs(item).map(item => item.fullPath.join(".")).join("\n")
+        if (op === "la")
+            return "src" in item ? showLeafItemX(item) : showNonLeafX(item)
+        else if (op === "backup")
+            return "src" in item
+                ? genCopyCmd(item.type === "dir")(item.fullSrc)(item.fullDist)
+                : getAllLeafXs(item)
+                      .map(leaf =>
+                          genCopyCmd(leaf.type === "dir")(leaf.fullSrc)(
+                              leaf.fullDist,
+                          ),
+                      )
+                      .join("\n")
         else
-            return "src" in item ?
-                genCopyCmd(item.type === "dir")(item.fullDist)(item.fullSrc) :
-                getAllLeafXs(item).map(leaf => genCopyCmd(leaf.type === "dir")(leaf.fullDist)(leaf.fullSrc)).join("\n")
+            return "src" in item
+                ? genCopyCmd(item.type === "dir")(item.fullDist)(item.fullSrc)
+                : getAllLeafXs(item)
+                      .map(leaf =>
+                          genCopyCmd(leaf.type === "dir")(leaf.fullDist)(
+                              leaf.fullSrc,
+                          ),
+                      )
+                      .join("\n")
     }
 
-const genCopyCmd = (isDir: boolean) => (src: string) => (dist: string): string => `
+const genCopyCmd =
+    (isDir: boolean) =>
+    (src: string) =>
+    (dist: string): string =>
+        `
 mkdir -p ${dist.split("/").slice(0, -1).join("/")}
 rm${isDir ? " -r " : " "}${dist}
 cp${isDir ? " -r " : " "}${src} ${dist}
